@@ -1,4 +1,4 @@
-from pyClarion import Atom, Atoms
+from pyClarion import Atom, Atoms, Family
 
 class Parameters(Atoms):
     lambda_left: Atom       # Poisson rate for left option
@@ -13,3 +13,8 @@ class IO(Atoms):
 class Decision(Atoms):
     left: Atom             # Sum to one for a left choice
     right: Atom            # Sum to one for a right choice
+
+class PRWData(Family):
+    parameters: Parameters
+    io: IO
+    decision: Decision
