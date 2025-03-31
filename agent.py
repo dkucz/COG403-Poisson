@@ -2,10 +2,10 @@ from pyClarion import Agent, Input, Choice, ChunkStore, Event, FixedRules, Famil
 from datetime import timedelta
 
 
-class Parameters(Atoms):
-    left_accumulator: Atom              # Left accumulator 
-    right_accumulator: Atom             # Right accumulator
-    threshold: Atom         # Threshold for activation of a choice
+# class Parameters(Atoms):
+#     left_accumulator: Atom              # Left accumulator 
+#     right_accumulator: Atom             # Right accumulator
+#     threshold: Atom         # Threshold for activation of a choice
 
 class IO(Atoms):
     input: Atom             
@@ -13,15 +13,13 @@ class IO(Atoms):
 
 # output ** decision
 
-class Decision(Atoms):
-    nil: Atom              # No choice
+class Direction(Atoms):
     left: Atom             # Left choice
     right: Atom            # Right choice
 
 class PRWData(Family):
-    parameters: Parameters
     io: IO
-    decision: Decision
+    direction: Direction
 
 class AccumulationRule(FixedRules):
     def update(self, 
@@ -62,20 +60,18 @@ class AccumulationRule(FixedRules):
 class AccumulationRule2(FixedRules):
     accumulator: Site
 
-    def __init__(self, name, p, r, c, d, v, *, sd = 1):
+    def __init__(self, name, p, r, c, d, v, *, sd = 1, threshold):
         super().__init__(name, p, r, c, d, v, sd=sd)
         self.accumulator = Site(self.rhs.td.main.index, {}, 0)
+        self.threshold = threshold
 
     def update_accumulator(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
         self.system.schedule(self.update_accumulator,
-            # override this method, and instead of overwriting the chunk add to the chunk 
             self.accumulator.add_inplace(self.rhs.td.main[0]),
             dt=dt, priority=priority)
-        
-        self.make_choice()
 
     # self.rhs.td.main[0] represents the data in the site currently 
 
@@ -88,32 +84,30 @@ class AccumulationRule2(FixedRules):
         super().resolve(event)
         if event.source == self.rhs.td.update:
             self.update_accumulator()
+        
+        if event.source == self.update_accumulator:
+            curr_accumulator = self.rhs.td.main[0]
 
-    def make_choice(self) -> None:
-        curr_accumulator = self.rhs.td.main[0]
+            if curr_accumulator.max().c > self.threshold:
+                self.choice.select()
 
-        if curr_accumulator > self.threshold:
-            pass
-            # select right as the choice
-
+        if event.source == self.choice.select:
             self.clear_accumulator()
 
-        if curr_accumulator < -self.threshold:
-            pass
-            # select left as the choice
-
-            self.clear_accumulator()
-
+p = Family()
 data = PRWData()
 with Agent('agent', d=data) as agent:
-    data_in = Input("data_in", d=data, v=data)
-    chunks = ChunkStore("chunks", c=data, d=data, v=data)
-    chunks.bu.input = data_in.main
+    data_in = Input("data_in", (data.io.input, data.direction))
+    accumulation_rules = AccumulationRule2("accumulation_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4, threshold=0.75)
+    choice = Choice('choice', p=p, d=data.io.output, v=data.direction, sd=1e-4)
+    accumulation_rules.rules.lhs.bu.input = data_in.main
+    choice.input = accumulation_rules.rules.rhs.td.main
 
 io = data.io
-parameters = data.parameters
+direction = data.direction
 
-chunk_defs = [
-    + io.input ** parameters.left,
-    - io.input ** parameters.right
+rule_defs = [
+    + io.input ** direction('X')
+    >>
+    + io.output ** direction("X")
 ]
