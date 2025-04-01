@@ -86,21 +86,24 @@ class AccumulationRule2(FixedRules):
         if event.source == self.rules.rhs.td.update:
             self.update_accumulator()
         
-        elif event.source == self.update_accumulator:
+        if event.source == self.update_accumulator:
             curr_accumulator = self.rules.rhs.td.main[0]
 
             if curr_accumulator.max().c > self.threshold:
                 self.choice.select()
-                print("MAKING A SELECTION!!! THIS SHOULD HAPPEN!!!")
+                # this causes further event updates and this ruins everything
+                # as the choice process or whatever schedules an update in the topdown section
+                # which triggers update accumulator
+                # and then this loops
 
-        elif event.source == self.choice.select:
+        if event.source == self.choice.select:
             self.clear_accumulator()
 
 p = Family()
 data = PRWData()
 with Agent('agent', d=data, p=p) as agent:
     data_in = Input("data_in", (data, data))
-    accumulation_rules = AccumulationRule2("accumulation_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4, threshold=0.75)
+    accumulation_rules = AccumulationRule2("accumulation_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4, threshold=10)
     choice = Choice('choice', p, (data.io.input, data.direction), sd=1e-4)
     accumulation_rules.rules.lhs.bu.input = data_in.main
     choice.input = accumulation_rules.rules.rhs.td.main
@@ -134,11 +137,10 @@ accumulation_rules.trigger()
 
 steps = 0
 
-while agent.system.queue and steps < 20:
+while agent.system.queue:
     steps += 1
     event = agent.system.advance()
     print(event)
-    print(f"Max Vector Value: {accumulation_rules.rules.rhs.td.main[0].max().c} greater than {accumulation_rules.threshold}: {accumulation_rules.rules.rhs.td.main[0].max().c > accumulation_rules.threshold}")
     if event.source == accumulation_rules.choice.select:
         results.append((event.time, choice.poll()))
     # else:
@@ -153,9 +155,10 @@ while agent.system.queue and steps < 20:
 #     if event.source == choice.select:
 #         results.append((event.time, choice.poll()))
 
+print("\n")
 for i in range(len(results)):
-    print(f"Found the following data at position {i}: {results[i]}")
+    print(f"Found the following data at position {i}: {results[i]} \n")
 
 
-for time, actions in results:
-    print(time, actions)
+# for time, actions in results:
+#     print(time, actions)
