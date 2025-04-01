@@ -69,8 +69,9 @@ class AccumulationRule2(FixedRules):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        print("updating accumulator")
         self.system.schedule(self.update_accumulator,
-            self.accumulator.add_inplace(self.rules.rhs.td.main[0]),
+            self.accumulator.update(self.rules.rhs.td.main[0], method=Site.add_inplace),
             dt=dt, priority=priority)
 
     # self.rhs.td.main[0] represents the data in the site currently 
@@ -78,27 +79,28 @@ class AccumulationRule2(FixedRules):
     def clear_accumulator(self, dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
-        self.system.schedule(self.clear_accumulator, self.accumulator.push({}), dt=dt, priority=priority)
+        self.system.schedule(self.clear_accumulator, self.accumulator.update({}), dt=dt, priority=priority)
 
     def resolve(self, event: Event) -> None:
         super().resolve(event)
         if event.source == self.rules.rhs.td.update:
             self.update_accumulator()
         
-        if event.source == self.update_accumulator:
+        elif event.source == self.update_accumulator:
             curr_accumulator = self.rules.rhs.td.main[0]
 
             if curr_accumulator.max().c > self.threshold:
                 self.choice.select()
+                print("MAKING A SELECTION!!! THIS SHOULD HAPPEN!!!")
 
-        if event.source == self.choice.select:
+        elif event.source == self.choice.select:
             self.clear_accumulator()
 
 p = Family()
 data = PRWData()
 with Agent('agent', d=data, p=p) as agent:
     data_in = Input("data_in", (data, data))
-    accumulation_rules = AccumulationRule2("accumulation_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4, threshold=0.01)
+    accumulation_rules = AccumulationRule2("accumulation_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4, threshold=0.75)
     choice = Choice('choice', p, (data.io.input, data.direction), sd=1e-4)
     accumulation_rules.rules.lhs.bu.input = data_in.main
     choice.input = accumulation_rules.rules.rhs.td.main
@@ -113,7 +115,7 @@ rule_defs = [
 ]
 
 trials = [
-    + io.input ** direction.left,
+    +0.5 * io.input ** direction.left,
 
     + io.input ** direction.right
 ]
@@ -130,13 +132,30 @@ data_in.send(trial_one)
 
 accumulation_rules.trigger()
 
-while agent.system.queue:
-    event = agent.system.advance()
-    print(accumulation_rules.rules.rhs.td.main[0].max())
-    if event.source == choice.select:
-        results.append((event.time, choice.poll()))
-    else:
-        data_in.send(trial_one)
-        accumulation_rules.trigger(dt=dt)
+steps = 0
 
-print(results)
+while agent.system.queue and steps < 20:
+    steps += 1
+    event = agent.system.advance()
+    print(event)
+    print(f"Max Vector Value: {accumulation_rules.rules.rhs.td.main[0].max().c} greater than {accumulation_rules.threshold}: {accumulation_rules.rules.rhs.td.main[0].max().c > accumulation_rules.threshold}")
+    if event.source == accumulation_rules.choice.select:
+        results.append((event.time, choice.poll()))
+    # else:
+    #     data_in.send(trial_one)
+
+# while agent.system.queue:
+#     event = agent.system.advance()
+#     if not agent.system.queue:
+#         data_in.send(trial_one, dt=dt)
+#         accumulation_rules.trigger(dt=dt)
+#     print(accumulation_rules.rules.rhs.td.main[0].max())
+#     if event.source == choice.select:
+#         results.append((event.time, choice.poll()))
+
+for i in range(len(results)):
+    print(f"Found the following data at position {i}: {results[i]}")
+
+
+for time, actions in results:
+    print(time, actions)
