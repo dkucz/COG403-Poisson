@@ -137,5 +137,6 @@ while agent.system.queue:
         results.append((event.time, choice.poll()))
     else:
         data_in.send(trial_one)
+        accumulation_rules.trigger(dt=dt)
 
 print(results)
