@@ -37,22 +37,21 @@ class Accumulator(Process):
     input: Site
     lax = ("input",)
 
-    def __init__(self, name, d, v):
+    def __init__(self, name, d, v, threshold):
         super().__init__(name)
         self.system.check_root(d, v)
         idx_d = self.system.get_index(keyform(d))
         idx_v = self.system.get_index(keyform(v))
         self.main = Site(idx_d * idx_v, {}, 0)
         self.input = Site(idx_d * idx_v, {}, 0)
+        self.threshold = threshold
 
     def update(self, 
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
         
-        print(f"Input: {self.input[0]}")
         main = self.main[0].sum(self.input[0])
-        print(f"Main: {main}")
 
         self.system.schedule(self.update,
             self.main.update(main,),
@@ -63,11 +62,22 @@ class Accumulator(Process):
     ) -> None:
         self.system.schedule(self.clear, self.main.update({}), dt=dt, priority=priority)
 
+    def above_threshold(self, dt: timedelta = timedelta(), priority: int = Priority.PROPAGATION) -> None:
+        self.system.schedule(self.above_threshold, dt=dt, priority=priority)
+
     def resolve(self, event) -> None:
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
 
         if self.input.affected_by(*updates):
             self.update()
+
+        if event.source == self.update and self.main[0].max().c > self.threshold:
+            print("ABOVE THRESHOLD")
+            self.above_threshold()
+
+# Detect when either left or right is above threshold
+# Issue a dummy event signaling that a decision has been made
+# Make agent choice.select(), then clear accumulator
 
     # How to connect update accumulator to updates in the Bottom Up section of the agent
     
@@ -86,11 +96,18 @@ class AccumulationAgent(Agent):
         with self:
             self.data_in = Input("data_in", (data, data))
             self.fixed_rules = FixedRules("fixed_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4)
-            self.choice = Choice('choice', p, (data.io.input, data.direction), sd=1e-4)
-            self.accumulator = Accumulator("accumulator", data.io.output, data.direction)
+            self.choice = Choice('choice', p, (data.io.output, data.direction), sd=1e-4)
+            self.accumulator = Accumulator("accumulator", data.io.output, data.direction, threshold=4)
             self.fixed_rules.rules.lhs.bu.input = self.data_in.main
             self.accumulator.input = self.fixed_rules.rules.rhs.td.main
             self.choice.input = self.accumulator.main
+
+    def resolve(self, event):
+        if event.source == agent.accumulator.above_threshold:
+            self.choice.select()
+        
+        if event.source == self.choice.select:
+            self.accumulator.clear()
 
 p = Family()
 data = PRWData()
@@ -123,13 +140,19 @@ results = []
 
 steps = 0
 
-while agent.system.queue and steps < 20:
+while agent.system.queue and steps < 40:
     steps += 1
     event = agent.system.advance()
     print(event)
     if event.source == agent.choice.select:
         results.append((event.time, agent.choice.poll()))
+    if event.source == agent.fixed_rules.trigger:
+        print("TRIGGERING FIXED RULES AGAIN")
+        agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
 
 print(agent.fixed_rules.rules.rhs.td.main[0])
 print(agent.accumulator.main[0])
 print(f"Results: {results}")
+
+
+# I don't get a result
