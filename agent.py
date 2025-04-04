@@ -14,23 +14,6 @@ class PRWData(Family):
     direction: Direction
 
 ###################################################### Accumulator Class
-# Input for the Accumulator
-# Either evidence for the left or the right orientation chunk
-# A 2D vector of ['left_val', 'right_val']
-# Essentially check whether or not there is an input to the bottom level
-
-# Output for the Accumulator
-# 3 Possible Decisions:
-# Left, Right, or Nil
-# 3D dimensional vector possibly?
-# ['left_decision', 'right_decision', 'nil_decision']
-
-# Events the Accumulator Needs to Handle:
-# Data Input
-# Updating the Accumulator
-# Checking whether the accumulator is greater than the threshold
-# Resetting after a decision is made
-# Ending the current trial
 
 class Accumulator(Process):
     main: Site
@@ -74,13 +57,6 @@ class Accumulator(Process):
         if event.source == self.update and self.main[0].max().c > self.threshold:
             print("ABOVE THRESHOLD")
             self.above_threshold()
-
-# Detect when either left or right is above threshold
-# Issue a dummy event signaling that a decision has been made
-# Make agent choice.select(), then clear accumulator
-
-    # How to connect update accumulator to updates in the Bottom Up section of the agent
-    
 
 ############################################## Accumulation Agent Class
 
