@@ -59,7 +59,6 @@ class Accumulator(Process):
             self.update()
 
         if event.source == self.update and self.main[0].max().c > self.threshold:
-            print("ABOVE THRESHOLD")
             self.above_threshold()
 
 ############################################## Accumulation Agent Class
@@ -120,9 +119,6 @@ results = []
 
 dt = timedelta(seconds=1)
 
-results = []
-dt = timedelta(seconds=1)
-
 for trial in trials:
     agent.accumulator.clear()
 
@@ -144,11 +140,9 @@ rts = []
 last_end_time = timedelta(seconds=0)
 
 for (end_time, _) in results:
-    # RT is time from start of *this* trial (which is last end + 1 second) to its end
     trial_start_time = last_end_time + timedelta(seconds=1)
     rt = (end_time - trial_start_time).total_seconds()
     rts.append(rt)
-    # Update for next trial
     last_end_time = end_time
 
 for i in range(len(rts)):
