@@ -1,5 +1,9 @@
 from pyClarion import Agent, Input, Choice, FixedRules, Family, Atoms, Atom, Site, FixedRules, Priority, Process, keyform
 from datetime import timedelta
+import statistics
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 
 class IO(Atoms):
     input: Atom             
@@ -55,7 +59,6 @@ class Accumulator(Process):
             self.update()
 
         if event.source == self.update and self.main[0].max().c > self.threshold:
-            print("ABOVE THRESHOLD")
             self.above_threshold()
 
 ############################################## Accumulation Agent Class
@@ -71,8 +74,8 @@ class AccumulationAgent(Agent):
 
         with self:
             self.data_in = Input("data_in", (data, data))
-            self.fixed_rules = FixedRules("fixed_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4)
-            self.choice = Choice('choice', p, (data.io.output, data.direction), sd=1e-4)
+            self.fixed_rules = FixedRules("fixed_rules", p=p, r=data, c=data, d=data, v=data, sd=0.2)
+            self.choice = Choice('choice', p, (data.io.output, data.direction), sd=0.2)
             self.accumulator = Accumulator("accumulator", data.io.output, data.direction, threshold=4)
             self.fixed_rules.rules.lhs.bu.input = self.data_in.main
             self.accumulator.input = self.fixed_rules.rules.rhs.td.main
@@ -83,6 +86,7 @@ class AccumulationAgent(Agent):
             self.choice.select()
         
         if event.source == self.choice.select:
+            agent.system.queue.clear()
             self.accumulator.clear()
 
 p = Family()
@@ -101,34 +105,65 @@ rule_defs = [
 trials = [
     + io.input ** direction.left,
 
-    + io.input ** direction.right
+    + io.input ** direction.right,
 ]
+
+trials = (
+    [+ io.input ** direction.left for _ in range(100)] +
+    [+ io.input ** direction.right for _ in range(100)]
+)
 
 agent.fixed_rules.rules.compile(*rule_defs)
 
-trial_one = trials.pop(0)
-
-agent.data_in.send(trial_one)
-
-agent.fixed_rules.trigger()
-
 results = []
 
-steps = 0
+dt = timedelta(seconds=1)
 
-while agent.system.queue and steps < 40:
-    steps += 1
-    event = agent.system.advance()
-    print(event)
-    if event.source == agent.choice.select:
-        results.append((event.time, agent.choice.poll()))
-    if event.source == agent.fixed_rules.trigger:
-        print("TRIGGERING FIXED RULES AGAIN")
-        agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
+for trial in trials:
+    agent.accumulator.clear()
 
-print(agent.fixed_rules.rules.rhs.td.main[0])
-print(agent.accumulator.main[0])
-print(f"Results: {results}")
+    agent.data_in.send(trial)
 
+    agent.fixed_rules.trigger(dt=timedelta(seconds=1))
 
-# I don't get a result
+    while agent.system.queue:
+        event = agent.system.advance()
+
+        if event.source == agent.choice.select:
+            results.append((event.time, agent.choice.poll()))
+            break
+
+        if event.source == agent.fixed_rules.trigger:
+            agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
+
+rts = []
+last_end_time = timedelta(seconds=0)
+
+for (end_time, _) in results:
+    trial_start_time = last_end_time + timedelta(seconds=1)
+    rt = (end_time - trial_start_time).total_seconds()
+    rts.append(rt)
+    last_end_time = end_time
+
+for i in range(len(rts)):
+    rts[i] = rts[i] + 0.239
+
+mean_rt = statistics.mean(rts)
+median_rt = statistics.median(rts)
+stdev_rt = statistics.stdev(rts)
+
+print(f"Mean RT: {mean_rt:.3f} seconds")
+print(f"Median RT: {median_rt:.3f} seconds")
+print(f"Standard Deviation: {stdev_rt:.3f} seconds")
+
+plt.figure(figsize=(8, 5))
+sns.kdeplot(rts, fill=True, linewidth=2)
+plt.title("Reaction Time Distribution")
+plt.xlabel("RT (seconds)")
+plt.ylabel("Density")
+plt.grid(axis='y', linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.axvline(np.mean(rts), color='red', linestyle='--', label=f"Mean RT: {np.mean(rts):.3f}s")
+plt.legend()
+plt.savefig("reaction_time_kde.png")
+plt.close()
