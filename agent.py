@@ -1,5 +1,9 @@
 from pyClarion import Agent, Input, Choice, FixedRules, Family, Atoms, Atom, Site, FixedRules, Priority, Process, keyform
 from datetime import timedelta
+import statistics
+import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
 
 class IO(Atoms):
     input: Atom             
@@ -150,4 +154,22 @@ for (end_time, _) in results:
 for i in range(len(rts)):
     rts[i] = rts[i] + 0.239
 
-print(rts)
+mean_rt = statistics.mean(rts)
+median_rt = statistics.median(rts)
+stdev_rt = statistics.stdev(rts)
+
+print(f"Mean RT: {mean_rt:.3f} seconds")
+print(f"Median RT: {median_rt:.3f} seconds")
+print(f"Standard Deviation: {stdev_rt:.3f} seconds")
+
+plt.figure(figsize=(8, 5))
+sns.kdeplot(rts, fill=True, linewidth=2)
+plt.title("Reaction Time Distribution")
+plt.xlabel("RT (seconds)")
+plt.ylabel("Density")
+plt.grid(axis='y', linestyle='--', alpha=0.6)
+plt.tight_layout()
+plt.axvline(np.mean(rts), color='red', linestyle='--', label=f"Mean RT: {np.mean(rts):.3f}s")
+plt.legend()
+plt.savefig("reaction_time_kde.png")
+plt.close()
