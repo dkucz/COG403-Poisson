@@ -71,8 +71,8 @@ class AccumulationAgent(Agent):
 
         with self:
             self.data_in = Input("data_in", (data, data))
-            self.fixed_rules = FixedRules("fixed_rules", p=p, r=data, c=data, d=data, v=data, sd=1e-4)
-            self.choice = Choice('choice', p, (data.io.output, data.direction), sd=1e-4)
+            self.fixed_rules = FixedRules("fixed_rules", p=p, r=data, c=data, d=data, v=data, sd=0.2)
+            self.choice = Choice('choice', p, (data.io.output, data.direction), sd=0.2)
             self.accumulator = Accumulator("accumulator", data.io.output, data.direction, threshold=4)
             self.fixed_rules.rules.lhs.bu.input = self.data_in.main
             self.accumulator.input = self.fixed_rules.rules.rhs.td.main
@@ -83,6 +83,7 @@ class AccumulationAgent(Agent):
             self.choice.select()
         
         if event.source == self.choice.select:
+            agent.system.queue.clear()
             self.accumulator.clear()
 
 p = Family()
@@ -101,34 +102,75 @@ rule_defs = [
 trials = [
     + io.input ** direction.left,
 
+    + io.input ** direction.right,
+
     + io.input ** direction.right
 ]
 
+print(trials)
+
 agent.fixed_rules.rules.compile(*rule_defs)
 
-trial_one = trials.pop(0)
+# agent.data_in.send(trials.pop(0))
 
-agent.data_in.send(trial_one)
-
-agent.fixed_rules.trigger()
+# agent.fixed_rules.trigger()
 
 results = []
 
-steps = 0
+dt = timedelta(seconds=1)
 
-while agent.system.queue and steps < 40:
-    steps += 1
-    event = agent.system.advance()
-    print(event)
-    if event.source == agent.choice.select:
-        results.append((event.time, agent.choice.poll()))
-    if event.source == agent.fixed_rules.trigger:
-        print("TRIGGERING FIXED RULES AGAIN")
-        agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
+# while agent.system.queue:
+#     # if trials and not agent.system.queue:
+#     #     print("Sending new input")
+#     #     agent.accumulator.clear()
+#     #     agent.data_in.send(trials.pop(0), dt=dt)
+#     event = agent.system.advance()
+#     if event.source == agent.choice.select:
+#         results.append((event.time, agent.choice.poll()))
+#         # agent.data_in.send(trials.pop(0), dt=dt)
+#     if event.source == agent.fixed_rules.trigger:
+#         print("TRIGGERING FIXED RULES AGAIN")
+#         agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
 
-print(agent.fixed_rules.rules.rhs.td.main[0])
-print(agent.accumulator.main[0])
-print(f"Results: {results}")
+# print(agent.fixed_rules.rules.rhs.td.main[0])
+# print(agent.accumulator.main[0])
 
+# def run_agent():
+#     while agent.system.queue:
+#         if trials and not agent.system.queue:
+#             agent.data_in.send(trials.pop(0), dt=dt)
+#         event = agent.system.advance()
+#         if event.source == agent.choice.select:
+#             results.append((event.time, agent.choice.poll()))
+#         if event.source == agent.fixed_rules.trigger:
+#             print("TRIGGERING FIXED RULES AGAIN")
+#             agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
 
-# I don't get a result
+# while trials:
+#     print(trials)
+#     print("RUNNING TRIAL")
+#     trial_data = trials.pop()
+
+#     run_agent()
+
+results = []
+dt = timedelta(seconds=1)
+
+for trial in trials:
+    agent.accumulator.clear()
+
+    agent.data_in.send(trial)
+
+    agent.fixed_rules.trigger(dt=timedelta(seconds=1))
+
+    while agent.system.queue:
+        event = agent.system.advance()
+
+        if event.source == agent.choice.select:
+            results.append((event.time, agent.choice.poll()))
+            break
+
+        if event.source == agent.fixed_rules.trigger:
+            agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
+
+print(results)
