@@ -103,55 +103,18 @@ trials = [
     + io.input ** direction.left,
 
     + io.input ** direction.right,
-
-    + io.input ** direction.right
 ]
 
-print(trials)
+trials = (
+    [+ io.input ** direction.left for _ in range(100)] +
+    [+ io.input ** direction.right for _ in range(100)]
+)
 
 agent.fixed_rules.rules.compile(*rule_defs)
-
-# agent.data_in.send(trials.pop(0))
-
-# agent.fixed_rules.trigger()
 
 results = []
 
 dt = timedelta(seconds=1)
-
-# while agent.system.queue:
-#     # if trials and not agent.system.queue:
-#     #     print("Sending new input")
-#     #     agent.accumulator.clear()
-#     #     agent.data_in.send(trials.pop(0), dt=dt)
-#     event = agent.system.advance()
-#     if event.source == agent.choice.select:
-#         results.append((event.time, agent.choice.poll()))
-#         # agent.data_in.send(trials.pop(0), dt=dt)
-#     if event.source == agent.fixed_rules.trigger:
-#         print("TRIGGERING FIXED RULES AGAIN")
-#         agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
-
-# print(agent.fixed_rules.rules.rhs.td.main[0])
-# print(agent.accumulator.main[0])
-
-# def run_agent():
-#     while agent.system.queue:
-#         if trials and not agent.system.queue:
-#             agent.data_in.send(trials.pop(0), dt=dt)
-#         event = agent.system.advance()
-#         if event.source == agent.choice.select:
-#             results.append((event.time, agent.choice.poll()))
-#         if event.source == agent.fixed_rules.trigger:
-#             print("TRIGGERING FIXED RULES AGAIN")
-#             agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
-
-# while trials:
-#     print(trials)
-#     print("RUNNING TRIAL")
-#     trial_data = trials.pop()
-
-#     run_agent()
 
 results = []
 dt = timedelta(seconds=1)
@@ -173,4 +136,18 @@ for trial in trials:
         if event.source == agent.fixed_rules.trigger:
             agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
 
-print(results)
+rts = []
+last_end_time = timedelta(seconds=0)
+
+for (end_time, _) in results:
+    # RT is time from start of *this* trial (which is last end + 1 second) to its end
+    trial_start_time = last_end_time + timedelta(seconds=1)
+    rt = (end_time - trial_start_time).total_seconds()
+    rts.append(rt)
+    # Update for next trial
+    last_end_time = end_time
+
+for i in range(len(rts)):
+    rts[i] = rts[i] + 0.239
+
+print(rts)
