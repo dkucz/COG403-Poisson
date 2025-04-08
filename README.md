@@ -30,8 +30,10 @@ cd COG403-Poisson
 
 2. **Activate a Virtual Environment**
 
+```bash
 python3 -m venv venv
 source venv/bin/activate       # On Windows: venv\Scripts\activate
+```
 
 3. **Install Necessary Packages**
 
