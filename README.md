@@ -23,6 +23,7 @@ COG403-Poisson/
 - matplotlib
 - seaborn
 - numpy
+- statistics
 
 ## Setup Instructions
 
