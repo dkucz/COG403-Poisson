@@ -156,6 +156,10 @@ print(f"Mean RT: {mean_rt:.3f} seconds")
 print(f"Median RT: {median_rt:.3f} seconds")
 print(f"Standard Deviation: {stdev_rt:.3f} seconds")
 
+min_rt = min(rts)
+max_rt = max(rts)
+print(f"Min RT: {min_rt:.3f}s, Max RT: {max_rt:.3f}s")
+
 plt.figure(figsize=(8, 5))
 sns.kdeplot(rts, fill=True, linewidth=2)
 plt.title("Reaction Time Distribution")
