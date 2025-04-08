@@ -5,26 +5,34 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 import numpy as np
 
+
+# Define atoms and structure
 class IO(Atoms):
     input: Atom             
     output: Atom
 
 class Direction(Atoms):
-    left: Atom             # Left choice
-    right: Atom            # Right choice
+    left: Atom
+    right: Atom
 
 class PRWData(Family):
     io: IO
     direction: Direction
 
-###################################################### Accumulator Class
-
+# Accumulator process for top-down integration
 class Accumulator(Process):
+    """
+    Accumulates activation over time from repeated input signals.
+    Once the total activation surpasses a threshold, it signals decision readiness.
+    """
     main: Site
     input: Site
     lax = ("input",)
 
     def __init__(self, name, d, v, threshold):
+        """
+        Initialize a new Accumulation process. 
+        """
         super().__init__(name)
         self.system.check_root(d, v)
         idx_d = self.system.get_index(keyform(d))
@@ -37,6 +45,9 @@ class Accumulator(Process):
         dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        """
+        Adds current input to accumulated value and schedules the next update.
+        """
         
         main = self.main[0].sum(self.input[0])
 
@@ -47,12 +58,22 @@ class Accumulator(Process):
     def clear(self, dt: timedelta = timedelta(), 
         priority: int = Priority.PROPAGATION
     ) -> None:
+        """
+        Clears the accumulator for the next trial.
+        """
         self.system.schedule(self.clear, self.main.update({}), dt=dt, priority=priority)
 
     def above_threshold(self, dt: timedelta = timedelta(), priority: int = Priority.PROPAGATION) -> None:
+        """
+        Signals that the threshold has been crossed.
+        """
         self.system.schedule(self.above_threshold, dt=dt, priority=priority)
 
     def resolve(self, event) -> None:
+        """
+        Handles incoming events and triggers updates. Also triggers an above_threshold check 
+        if an accumulation site reaches the threshold.
+        """
         updates = [ud for ud in event.updates if isinstance(ud, Site.Update)]
 
         if self.input.affected_by(*updates):
@@ -61,15 +82,21 @@ class Accumulator(Process):
         if event.source == self.update and self.main[0].max().c > self.threshold:
             self.above_threshold()
 
-############################################## Accumulation Agent Class
 
+# Agent with Clarion modules
 class AccumulationAgent(Agent):
+    """
+    A Clarion agent that accumulates evidence from input chunks and makes decisions based on a threshold.
+    """
     accumulator: Accumulator
     data_in: Input
     choice: Choice
     fixed_rules: FixedRules
 
     def __init__(self, name, **families):
+        """
+        Initialize a new pyClarion Agent with Accumulation.
+        """
         super().__init__(name, **families)
 
         with self:
@@ -82,6 +109,9 @@ class AccumulationAgent(Agent):
             self.choice.input = self.accumulator.main
 
     def resolve(self, event):
+        """
+        Handles event triggering and resets for new trials.
+        """
         if event.source == agent.accumulator.above_threshold:
             self.choice.select()
         
@@ -89,6 +119,8 @@ class AccumulationAgent(Agent):
             agent.system.queue.clear()
             self.accumulator.clear()
 
+
+# Initialize agent and model components
 p = Family()
 data = PRWData()
 agent = AccumulationAgent("agent", d=data, p=p)
@@ -96,18 +128,14 @@ agent = AccumulationAgent("agent", d=data, p=p)
 io = data.io
 direction = data.direction
 
+# Define decision rules
 rule_defs = [
     + io.input ** direction('X')
     >>
     + io.output ** direction("X")
 ]
 
-trials = [
-    + io.input ** direction.left,
-
-    + io.input ** direction.right,
-]
-
+# Generate 200 trials (100 per category)
 trials = (
     [+ io.input ** direction.left for _ in range(100)] +
     [+ io.input ** direction.right for _ in range(100)]
@@ -119,6 +147,7 @@ results = []
 
 dt = timedelta(seconds=1)
 
+# Run simulation across all trials
 for trial in trials:
     agent.accumulator.clear()
 
@@ -136,6 +165,7 @@ for trial in trials:
         if event.source == agent.fixed_rules.trigger:
             agent.fixed_rules.trigger(dt=timedelta(0, 0, 0, 50))
 
+# Compute reaction times based on stimulus-to-decision timing
 rts = []
 last_end_time = timedelta(seconds=0)
 
@@ -145,9 +175,11 @@ for (end_time, _) in results:
     rts.append(rt)
     last_end_time = end_time
 
+# Add residual motor time
 for i in range(len(rts)):
     rts[i] = rts[i] + 0.239
 
+# Print RT statistics
 mean_rt = statistics.mean(rts)
 median_rt = statistics.median(rts)
 stdev_rt = statistics.stdev(rts)
@@ -156,6 +188,11 @@ print(f"Mean RT: {mean_rt:.3f} seconds")
 print(f"Median RT: {median_rt:.3f} seconds")
 print(f"Standard Deviation: {stdev_rt:.3f} seconds")
 
+min_rt = min(rts)
+max_rt = max(rts)
+print(f"Min RT: {min_rt:.3f}s, Max RT: {max_rt:.3f}s")
+
+# Plot RT distribution
 plt.figure(figsize=(8, 5))
 sns.kdeplot(rts, fill=True, linewidth=2)
 plt.title("Reaction Time Distribution")
