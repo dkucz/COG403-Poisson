@@ -26,6 +26,7 @@ clarion-decision-sim/ │ ├── main.py # Main script to run the simulation 
 ```bash
 git clone https://github.com/dkucz/COG403-Poisson.git
 cd COG403-Poisson
+```
 
 2. **Activate a Virtual Environment**
 
@@ -36,7 +37,7 @@ source venv/bin/activate       # On Windows: venv\Scripts\activate
 
 ```bash
 pip install -e .
-
+```
 
 ## Running the Simulation
 
@@ -44,6 +45,7 @@ To generate simulation results and the reaction time plot:
 
 ```bash
 python agent.py
+```
 
 This will:
 - Run 200 trials of the Clarion agent.
