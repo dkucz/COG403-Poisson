@@ -10,6 +10,7 @@ The agent accumulates activation for each decision category across discrete time
 
 ```css
 COG403-Poisson/
+├── pyClarion/
 ├── agent.py
 ├── reaction_time_dist.png
 └── README.md
@@ -22,7 +23,6 @@ COG403-Poisson/
 - matplotlib
 - seaborn
 - numpy
-- pandas
 
 ## Setup Instructions
 
