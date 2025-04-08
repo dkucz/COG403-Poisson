@@ -10,12 +10,8 @@ The agent accumulates activation for each decision category across discrete time
 
 ```css
 COG403-Poisson/
-├── main.py
-├── accumulator.py
 ├── agent.py
-├── analysis.py
 ├── reaction_time_dist.png
-├── requirements.txt
 └── README.md
 ```
 
